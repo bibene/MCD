@@ -1,0 +1,296 @@
+<!DOCTYPE html> 
+<html>
+  <head>
+  	<title>Crypto Cyrency Dashboard</title>
+    <meta name="mobile-web-app-capable" content="yes">
+	  <meta name="viewport" content="width=device-width, initial-scale=1">
+	  <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" />
+	  <script src="http://code.jquery.com/jquery-2.2.4.min.js"></script>
+	  <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	  <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+	  
+    <script type="text/template" id="CoinListItemTemplate">
+        <li>
+          <a>
+            <img src="<%- img_src%>" class="ui-li-icon"> 
+            <%- amount %> <%- symbol %>
+            
+            <% if (rate) { %>
+              <p class="ui-li-aside" id="<%-symbol%>value">
+                <%= getCoinAmountHtml(amount*rate) %> 
+              </p>
+            <% } %>
+          </a>
+        </li>
+    </script>    
+	  
+    <script type="text/javascript">
+    var DEFAULT_API_CACHE_PERIOD = 60; //call the coinmarketcap only max every 60 seconds, otherwise reuse previous data, dont set too low 
+    var appCurrency = localStorage.getItem("appCurrency"); 
+    if (!appCurrency) {
+      appCurrency = "USD"
+    }
+    var appCoinDefaults = {name: "???", symbol: "???", img_src: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", amount: null, rate: null}; 
+    var appCoins = JSON.parse(localStorage.getItem("appCoins"));
+    if (!appCoins) {
+      appCoins = {};
+    }
+    
+    //used initially when loading the app/page and top update DOM when coins are added, updated or removed   
+    function getCoinListHtml(){
+      var liHtml = "";
+      var liRenderer = _.template($('#CoinListItemTemplate').html());
+      _.each(appCoins, function(value, key, list){ liHtml=liHtml+liRenderer(_.defaults(value,appCoinDefaults))});
+      return liHtml;
+    }
+
+    //used by template as well as to update DOM when refreshing data 
+    function getCoinAmountHtml(amount){
+      return "&#8776; " + amount.toFixed(2) + " " + appCurrency; 
+    }
+    
+    //example usage: getCoinMarketCapData("EUR", 60, function(data){xxx = data;});
+    //EUR is currency, 60 is seconds for cached data reusing, 3rd param is callback function     
+    getCoinMarketCapData = function(){
+      var coinData; 
+      var lastAPIcallDateMili = Date.now();
+      return function(currency, cacheSeconds, callback){
+        if ( !coinData || (Date.now()-lastAPIcallDateMili)>1000*cacheSeconds ) {
+          lastAPIcallDateMili = Date.now();
+          $.getJSON( "https://api.coinmarketcap.com/v1/ticker/?convert=" + currency, function( data ) {
+            coinData = data;
+            lastAPIcallDateMili = Date.now();
+            callback(data);
+          });
+        }
+        callback(coinData)
+      };  
+    }();
+    
+    function enrichCoinData(callback){
+      getCoinMarketCapData(appCurrency, DEFAULT_API_CACHE_PERIOD, function(data){
+        _.each(data, function(coin){
+          if (_.has(appCoins, coin["symbol"]) ) {
+            appCoins[coin["symbol"]]["rate"] = coin["price_" + appCurrency.toLowerCase()];
+            appCoins[coin["symbol"]]["name"] = coin["name"];
+            appCoins[coin["symbol"]]["img_src"] = "https://files.coinmarketcap.com/static/img/coins/16x16/" + coin["id"] + ".png";
+            //TODO other data?
+          };
+        });
+      if (callback) { 
+        callback();
+        }
+      });
+    };
+    
+    function updateAmounts(){
+      var total = 0.0;
+      _.each(appCoins, function(coin) {
+          if (coin.amount && coin.rate) {
+            var newHtml = getCoinAmountHtml(coin.amount*coin.rate);
+            if ($("#" + coin["symbol"] + "value").html() != newHtml)  
+            $("#" + coin["symbol"] + "value").empty();
+            $("#" + coin["symbol"] + "value").append(newHtml);
+            total = total + (parseFloat(coin.amount) * parseFloat(coin.rate));
+          } else {
+            $("#" + coin["symbol"] + "value").empty();
+          }
+        });
+      total = total.toFixed(2);
+      $("#totalValue").empty();
+      $("#totalValue").append("" + total + " " + appCurrency);      
+    };
+
+    function refresh(){
+      enrichCoinData(function(){
+        updateAmounts();
+      });
+    }
+    
+    //configuration changes 
+    function processConfigSubmit(){
+      var currency = $("#currencySelect").val();
+      
+      if (currency && currency!=appCurrency) {
+        appCurrency = currency
+        localStorage.setItem("appCurrency", currency);
+        //remove rate from all coins as its in another currency
+        _.each(appCoins, function(coin){
+          coin["rate"]=null;
+        });
+        //update amounts - will be empty as there is probably no data for the new currency 
+        updateAmounts();
+        
+        getCoinMarketCapData(appCurrency, 0, function(d){}); //hack circumvent any cache period as we need data in the new currency
+        refresh(); //this will fetch the data in the new currency - using cache from call above 
+      }
+      
+      $.mobile.navigate( "#mainPage" );
+    };
+    
+    //adding of new coins and modifying existing, see page #editPage
+    function processModifySubmit(){
+      var symbol = $("#edit-symbol").val();
+      var amount = $("#edit-amount").val();
+      
+      if (symbol) {
+        symbol = symbol.toUpperCase().trim();
+        if (_.has(appCoins, symbol)) {
+          if (amount && amount!=0) {
+            //update
+            appCoins[symbol]["amount"] = amount;
+          } else {
+            //remove 
+            delete appCoins[symbol];
+          }
+        } else {
+          //add
+          appCoins[symbol] = {"symbol": symbol, "amount": amount};
+        }
+      };
+      
+      refresh();
+      
+      //save in localstorage 
+      localStorage.setItem("appCoins", JSON.stringify(appCoins));
+      
+      //rerender whole list  
+      $("#coinList").empty();
+      $("#coinList").append(getCoinListHtml());
+      $('#coinList').listview('refresh');
+      
+      //TODO rerender individual coin pages once they are implemented 
+      
+      $("#edit-symbol").val(null);
+      $("#edit-amount").val(null);
+      $.mobile.navigate( "#mainPage" );
+    };
+    
+    enrichCoinData();
+    $(document).ready(function(){
+      $("#currencySelect").val(appCurrency);
+      refresh(); 
+      setInterval(refresh, 10000);
+      }); 
+
+    </script>
+    
+  </head>
+
+  <body>
+    
+    <div data-role="page" id="mainPage">
+      <div data-role="header" data-position="fixed">
+        <h1 id="totalValue"></h1>
+        <a href="#configPage" data-icon="gear" data-iconpos="notext" class="ui-btn-left"></a>
+        <a href="#" data-icon="recycle" data-iconpos="notext" class="ui-btn-right" onclick="refresh();return false;"></a>
+      </div>
+	    <div role="main" class="ui-content">
+        <ul data-role="listview" id="coinList">
+
+          <script type="text/javascript">
+            document.write(getCoinListHtml());
+            updateAmounts();
+          </script>
+
+        </ul>
+	    </div>
+	    <div data-role="footer" data-position="fixed">
+         <h1>&nbsp;</h1>
+         <a href="#infoPage" data-icon="info" data-iconpos="notext" class="ui-btn-left" style="top: -0.2em"></a>
+         <a href="#editPage" data-icon="edit" data-iconpos="notext" class="ui-btn-right" style="top: -0.2em"></a>
+	    </div>
+    </div>
+    
+    <div data-role="page" id="configPage">
+      <div data-role="header" data-position="fixed">
+        <h1>Configuration</h1>
+        <a href="#mainPage" data-icon="back" data-iconpos="notext" class="ui-btn-left"></a>
+      </div>
+	    <div role="main" class="ui-content">
+        <form>
+          <label for="currencySelect">Currency:</label>
+          <select name="currencySelect" id="currencySelect">
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="AUD">AUD</option>
+            <option value="BRL">BRL</option>
+            <option value="CAD">CAD</option>
+            <option value="CHF">CHF</option>
+            <option value="CLP">CLP</option>
+            <option value="CNY">CNY</option>
+            <option value="CZK">CZK</option>
+            <option value="DKK">DKK</option>
+            <option value="GBP">GBP</option>
+            <option value="HKD">HKD</option>
+            <option value="HUF">HUF</option>
+            <option value="IDR">IDR</option>
+            <option value="ILS">ILS</option>
+            <option value="INR">INR</option>
+            <option value="JPY">JPY</option>
+            <option value="KRW">KRW</option>
+            <option value="MXN">MXN</option>
+            <option value="MYR">MYR</option>
+            <option value="NOK">NOK</option>
+            <option value="NZD">NZD</option>
+            <option value="PHP">PHP</option>
+            <option value="PKR">PKR</option>
+            <option value="PLN">PLN</option>
+            <option value="RUB">RUB</option>
+            <option value="SEK">SEK</option>
+            <option value="SGD">SGD</option>
+            <option value="THB">THB</option>
+            <option value="TRY">TRY</option>
+            <option value="TWD">TWD</option>
+            <option value="ZAR">ZAR</option>
+          </select>
+          <input type="button" value="Save" onclick="processConfigSubmit();">
+        </form>
+	    </div>
+	    <div data-role="footer" data-position="fixed">
+         <h1>&nbsp;</h1>
+	    </div>
+    </div>
+    
+    <div data-role="page" id="editPage">
+      <div data-role="header" data-position="fixed">
+        <h1>Add/Modify</h1>
+        <a href="#mainPage" data-icon="back" data-iconpos="notext" class="ui-btn-left"></a>
+      </div>
+	    <div role="main" class="ui-content">
+        <form>
+          <label for="symbol">Currency/Asset symbol:</label>
+          <input type="text" name="symbol" id="edit-symbol" value="">
+          <label for="amount">Amount: </label>
+          <input type="number" data-clear-btn="false" name="amount" id="edit-amount" value="">
+          <input type="button" value="Save" onclick="processModifySubmit();">
+        </form>
+	    </div>
+	    <div data-role="footer" data-position="fixed">
+         <h1>&nbsp;</h1>
+	    </div>
+    </div>
+
+
+    <div data-role="page" id="infoPage">
+      <div data-role="header" data-position="fixed">
+        <h1>Info</h1>
+        <a href="#mainPage" data-icon="back" data-iconpos="notext" class="ui-btn-left"></a>
+      </div>
+	    <div role="main" class="ui-content">
+        <p>My Cryptocurrency Dashboard is a single html file webapplication (dependencies: JQuery, JQuery Mobile, Underscore.js). You can host it or use it from a local storage on your PC or other device. </p>
+        <p>Data it stored loacally in the browser and never leaves your device. External crypto currency data is retrieved form <a hrfe="coinmarketcap.com">coinmarketcap.com</a>. </p>
+        <p>Source is <a href="https://github.com/bibene/MCD"> here </a></p>
+        <p>If You feel like donating then please consider a donation to <a hrfe="coinmarketcap.com">coinmarketcap.com</a>, without their API this application would not be possible.
+        After that you can buy me a beer:
+        </br>BTC: 1M6uGrB9Mesm3gGhEjCT1MK1azn16pVxs3
+        </br>ETH: 0x6d22adF55901C0482f5c5406dA665b3A4eF0adb4
+        </p>
+	    </div>
+	    <div data-role="footer" data-position="fixed">
+         <h1>&nbsp;</h1>
+	    </div>
+    </div>
+    
+  </body>
+</html>
