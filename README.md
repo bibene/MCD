@@ -10,7 +10,8 @@ If You feel like donating then please consider a donation to [coinmarketcap.com]
 - ETH: 0x6d22adF55901C0482f5c5406dA665b3A4eF0adb4
 
 Some TODOs for the future:
-- refactoring and code cleanup (one global variable, separate logic from UI, nicer API call limiting, ..)
+- icons so it looks good when put on android or iPhone homescreen 
+- refactoring and code cleanup (one global variable, separate logic from UI, nicer API call limiting, ..) 
 - implement details pages for each coin type
 - nicer UI for adding, modifying and removing coins
 - besides entering amounts also allow adding address, the amounts should be fetched automatically (and periodically)
