@@ -5,9 +5,9 @@ MCD is a single html file webapplication (dependencies: JQuery, JQuery Mobile, U
 
 Data it stored loacaly in the browser and never leaves your device. External crypto currency data is retrieved form coinmarketcap.com.
 
-If You feel like donating then please consider a donation to coinmarketcap.com, without their API this application would not be possible. After that you can buy me a beer: 
-BTC: 1M6uGrB9Mesm3gGhEjCT1MK1azn16pVxs3 
-ETH: 0x6d22adF55901C0482f5c5406dA665b3A4eF0adb4
+If You feel like donating then please consider a donation to [coinmarketcap.com](coinmarketcap.com), without their API this application would not be possible. After that you can buy me a beer:
+- BTC: 1M6uGrB9Mesm3gGhEjCT1MK1azn16pVxs3 
+- ETH: 0x6d22adF55901C0482f5c5406dA665b3A4eF0adb4
 
 Some TODOs for the future:
 - refactoring and code cleanup (one global variable, separate logic from UI, nicer API call limiting, ..)
