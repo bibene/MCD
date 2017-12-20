@@ -1,6 +1,8 @@
 # MCD
 My Cryptocurrency Dashboard - see the value of all your crypto currency and assets. 
 
+![screenshot](screenshot.png?raw=true "Screenshot")
+
 MCD is a single html file webapplication (dependencies: JQuery, JQuery Mobile, Underscore.js). You can host it or use it from a local storage on your PC or other device.
 
 Data it stored loacaly in the browser and never leaves your device. External crypto currency data is retrieved form coinmarketcap.com.
