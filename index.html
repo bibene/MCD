@@ -35,6 +35,9 @@
     if (!appCoins) {
       appCoins = {};
     }
+    var lastUpdatedTime = JSON.parse(localStorage.getItem("lastUpdatedTime"));
+
+
     
     //used initially when loading the app/page and top update DOM when coins are added, updated or removed   
     function getCoinListHtml(){
@@ -57,9 +60,10 @@
       return function(currency, cacheSeconds, callback){
         if ( !coinData || (Date.now()-lastAPIcallDateMili)>1000*cacheSeconds ) {
           lastAPIcallDateMili = Date.now();
-          $.getJSON( "https://api.coinmarketcap.com/v1/ticker/?convert=" + currency, function( data ) {
+          $.getJSON( "https://api.coinmarketcap.com/v1/ticker/?limit=0&convert=" + currency, function( data ) {
             coinData = data;
             lastAPIcallDateMili = Date.now();
+            lastUpdatedTime = lastAPIcallDateMili;
             callback(data);
           });
         }
@@ -98,12 +102,33 @@
         });
       total = total.toFixed(2);
       $("#totalValue").empty();
-      $("#totalValue").append("" + total + " " + appCurrency);      
+      $("#totalValue").append("" + total + " " + appCurrency);
     };
+
+    function updateUpdateTime(){
+      if (lastUpdatedTime) {
+        var textValue;
+        var seconds = ((Date.now() - lastUpdatedTime) / 1000);
+        if (seconds < 10) {
+          textValue = "Updated just now"
+        } else {
+          if (seconds < 60) {
+            textValue = "Updated "  + seconds.toFixed(0) + " seconds ago";
+          } else {
+            textValue = "Updated "  + (seconds/60).toFixed(0) + " minutes ago";
+          }
+        }
+        $("#lastUpdated").empty();
+        $("#lastUpdated").append(textValue);
+      }
+    }
 
     function refresh(){
       enrichCoinData(function(){
         updateAmounts();
+        localStorage.setItem("appCoins", JSON.stringify(appCoins));
+        localStorage.setItem("lastUpdatedTime", JSON.stringify(lastUpdatedTime));
+        updateUpdateTime();
       });
     }
     
@@ -151,9 +176,6 @@
       
       refresh();
       
-      //save in localstorage 
-      localStorage.setItem("appCoins", JSON.stringify(appCoins));
-      
       //rerender whole list  
       $("#coinList").empty();
       $("#coinList").append(getCoinListHtml());
@@ -170,7 +192,8 @@
     $(document).ready(function(){
       $("#currencySelect").val(appCurrency);
       refresh(); 
-      setInterval(refresh, 10000);
+      setInterval(refresh, DEFAULT_API_CACHE_PERIOD*1000);
+      setInterval(updateUpdateTime, 1000);
       }); 
 
     </script>
@@ -196,7 +219,7 @@
         </ul>
 	    </div>
 	    <div data-role="footer" data-position="fixed">
-         <h1>&nbsp;</h1>
+         <h1><div style="font-size: 10px" id="lastUpdated">&nbsp;</div></h1>
          <a href="#infoPage" data-icon="info" data-iconpos="notext" class="ui-btn-left" style="top: -0.2em"></a>
          <a href="#editPage" data-icon="edit" data-iconpos="notext" class="ui-btn-right" style="top: -0.2em"></a>
 	    </div>
