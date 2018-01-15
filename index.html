@@ -47,9 +47,19 @@
       return liHtml;
     }
 
+    function amountWithSign(amount){
+      var sign = " ";
+      if (amount < 0){
+          sign = "-";
+      } else if (amount > 0) {
+          sign = "+";
+      }
+      return sign + Math.abs(amount).toFixed(2); 
+    }
+
     //used by template as well as to update DOM when refreshing data 
-    function getCoinAmountHtml(amount, rate, previous_rate){
-      return "&#8776; " + (amount * rate).toFixed(2) + " " + appCurrency + " (" + (amount * rate - amount * previous_rate).toFixed(2) + ")"; 
+    function getCoinAmountHtml(amount, rate, previous_rate){      
+      return "&#8776; " + (amount * rate).toFixed(2) + " " + appCurrency + " (" + amountWithSign(amount * rate - amount * previous_rate) + ")"; 
     }
     
     //example usage: getCoinMarketCapData("EUR", 60, function(data){xxx = data;});
@@ -58,7 +68,7 @@
       var coinData; 
       var lastAPIcallDateMili = Date.now();
       return function(currency, cacheSeconds, callback){
-        if ( !coinData || (Date.now()-lastAPIcallDateMili)>1000*cacheSeconds ) {
+        if ( !coinData || isApiDataTooOld(lastAPIcallDateMili, cacheSeconds) ) {
           lastAPIcallDateMili = Date.now();
           $.getJSON( "https://api.coinmarketcap.com/v1/ticker/?limit=0&convert=" + currency, function( data ) {
             coinData = data;
@@ -71,14 +81,22 @@
       };  
     }();
     
+	
+    function isApiDataTooOld(lastAPIcallDateMili, cacheSeconds){
+        return (Date.now()-lastAPIcallDateMili)>1000*cacheSeconds
+    }
+
+
     function enrichCoinData(callback){
       getCoinMarketCapData(appCurrency, DEFAULT_API_CACHE_PERIOD, function(data){
         _.each(data, function(coin){
           if (_.has(appCoins, coin["symbol"]) ) {
-	    if (appCoins[coin["symbol"]]["rate"] != null){
-                appCoins[coin["symbol"]]["previous_rate"] = appCoins[coin["symbol"]]["rate"];
-	    } else {
-                appCoins[coin["symbol"]]["previous_rate"] = 0.0;
+            if (isApiDataTooOld(lastUpdatedTime, DEFAULT_API_CACHE_PERIOD)) {            
+	        if (appCoins[coin["symbol"]]["rate"] != null){
+	            appCoins[coin["symbol"]]["previous_rate"] = appCoins[coin["symbol"]]["rate"];
+    	        } else {
+	            appCoins[coin["symbol"]]["previous_rate"] = 0.0;
+	        }
             }
             appCoins[coin["symbol"]]["rate"] = coin["price_" + appCurrency.toLowerCase()];
             appCoins[coin["symbol"]]["name"] = coin["name"];
@@ -110,7 +128,7 @@
       totalDifference = (total - totalDifference).toFixed(2);
       total = total.toFixed(2);
       $("#totalValue").empty();
-      $("#totalValue").append("" + total + " " + appCurrency + " (" + totalDifference + ")");
+      $("#totalValue").append("" + total + " " + appCurrency + " (" + amountWithSign(totalDifference) + ")");
     };
 
     function updateUpdateTime(){
