@@ -17,7 +17,7 @@
             
             <% if (rate) { %>
               <p class="ui-li-aside" id="<%-symbol%>value">
-                <%= getCoinAmountHtml(amount*rate) %> 
+                <%= getCoinAmountHtml(amount, rate, previous_rate) %> 
               </p>
             <% } %>
           </a>
@@ -30,7 +30,7 @@
     if (!appCurrency) {
       appCurrency = "USD"
     }
-    var appCoinDefaults = {name: "???", symbol: "???", img_src: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", amount: null, rate: null}; 
+    var appCoinDefaults = {name: "???", symbol: "???", img_src: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", amount: null, rate: null, previous_rate: 0.0}; 
     var appCoins = JSON.parse(localStorage.getItem("appCoins"));
     if (!appCoins) {
       appCoins = {};
@@ -48,8 +48,8 @@
     }
 
     //used by template as well as to update DOM when refreshing data 
-    function getCoinAmountHtml(amount){
-      return "&#8776; " + amount.toFixed(2) + " " + appCurrency; 
+    function getCoinAmountHtml(amount, rate, previous_rate){
+      return "&#8776; " + (amount * rate).toFixed(2) + " " + appCurrency + " (" + (amount * rate - amount * previous_rate).toFixed(2) + ")"; 
     }
     
     //example usage: getCoinMarketCapData("EUR", 60, function(data){xxx = data;});
@@ -75,6 +75,11 @@
       getCoinMarketCapData(appCurrency, DEFAULT_API_CACHE_PERIOD, function(data){
         _.each(data, function(coin){
           if (_.has(appCoins, coin["symbol"]) ) {
+	    if (appCoins[coin["symbol"]]["rate"] != null){
+                appCoins[coin["symbol"]]["previous_rate"] = appCoins[coin["symbol"]]["rate"];
+	    } else {
+                appCoins[coin["symbol"]]["previous_rate"] = 0.0;
+            }
             appCoins[coin["symbol"]]["rate"] = coin["price_" + appCurrency.toLowerCase()];
             appCoins[coin["symbol"]]["name"] = coin["name"];
             appCoins[coin["symbol"]]["img_src"] = "https://files.coinmarketcap.com/static/img/coins/16x16/" + coin["id"] + ".png";
@@ -89,20 +94,23 @@
     
     function updateAmounts(){
       var total = 0.0;
+      var totalDifference = 0.0;
       _.each(appCoins, function(coin) {
           if (coin.amount && coin.rate) {
-            var newHtml = getCoinAmountHtml(coin.amount*coin.rate);
+            var newHtml = getCoinAmountHtml(coin.amount, coin.rate, coin.previous_rate);
             if ($("#" + coin["symbol"] + "value").html() != newHtml)  
             $("#" + coin["symbol"] + "value").empty();
             $("#" + coin["symbol"] + "value").append(newHtml);
             total = total + (parseFloat(coin.amount) * parseFloat(coin.rate));
+	    totalDifference = totalDifference + (parseFloat(coin.amount) * parseFloat(coin.previous_rate));
           } else {
             $("#" + coin["symbol"] + "value").empty();
           }
         });
+      totalDifference = (total - totalDifference).toFixed(2);
       total = total.toFixed(2);
       $("#totalValue").empty();
-      $("#totalValue").append("" + total + " " + appCurrency);
+      $("#totalValue").append("" + total + " " + appCurrency + " (" + totalDifference + ")");
     };
 
     function updateUpdateTime(){
